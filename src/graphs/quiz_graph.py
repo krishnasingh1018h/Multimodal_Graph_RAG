@@ -226,6 +226,41 @@ def n_verify(s: QuizState) -> QuizState:
         s["questions"] = keep
     except Exception:
         pass
+    if not s["questions"]:
+        from src.stores.vector import hybrid_search
+
+        docs = hybrid_search(
+            f"{s['scope']} {s['difficulty_target']} questions", k=6, topic=None)
+        fallback = []
+        seen_questions: set[str] = set()
+        for doc in docs:
+            for sentence in _quiz_worthy_sentences(doc.page_content):
+                metadata = doc.metadata
+                source = metadata.get("source_file", "")
+                if metadata.get("page"):
+                    source += f"#page={metadata['page']}"
+                concept = _extract_concept(sentence)
+                question = QuizQuestion(
+                    qtype="short",
+                    stem=f"Explain {concept} in your own words.",
+                    answer_key=sentence,
+                    topic=metadata.get("topic", s["scope"]),
+                    source=source,
+                    difficulty=s["difficulty_target"],
+                    explanation=f"Key point: {sentence[:200]} (See {source})",
+                )
+                question_hash = hashlib.sha256(
+                    question.stem.strip().lower().encode()).hexdigest()[:12]
+                if question_hash in seen_questions:
+                    continue
+                seen_questions.add(question_hash)
+                question.qhash = question_hash
+                fallback.append(question)
+                if len(fallback) >= s["n_questions"]:
+                    break
+            if len(fallback) >= s["n_questions"]:
+                break
+        s["questions"] = [question.model_dump() for question in fallback]
     return s
 
 

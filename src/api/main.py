@@ -5,8 +5,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # project root (for `src.*`)
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import shutil, os
+from src.schemas.models import QuizQuestion
 
 app = FastAPI(title="Learning Companion (LangGraph RAG)")
 app.add_middleware(
@@ -22,16 +23,23 @@ os.makedirs(DATA, exist_ok=True)
 
 
 class ChatIn(BaseModel):
-    question: str
+    question: str = Field(min_length=1, max_length=4000)
     student_id: str = "anon"
-    topic: str | None = None
+    topic: str | None = Field(default=None, max_length=200)
 
 
 class QuizIn(BaseModel):
-    scope: str
+    scope: str = Field(min_length=1, max_length=200)
     student_id: str = "anon"
     difficulty: str = "auto"
-    n: int = 5
+    n: int = Field(default=5, ge=1, le=8)
+
+
+class QuizSubmitIn(BaseModel):
+    scope: str = Field(min_length=1, max_length=200)
+    student_id: str = "anon"
+    questions: list[QuizQuestion] = Field(min_length=1, max_length=8)
+    answers: dict[str, str]
 
 
 @app.post("/ingest")
@@ -88,6 +96,23 @@ def quiz(inp: QuizIn):
                                    "difficulty_target": inp.difficulty, "n_questions": inp.n,
                                    "questions": [], "results": [], "weak_topics": []})
     return {"questions": r["questions"]}
+
+
+@app.post("/quiz/submit")
+def submit_quiz(inp: QuizSubmitIn):
+    from src.graphs.quiz_graph import n_feedback
+
+    state = {
+        "student_id": inp.student_id,
+        "scope": inp.scope,
+        "difficulty_target": "auto",
+        "n_questions": len(inp.questions),
+        "questions": [question.model_dump() for question in inp.questions],
+        "results": [],
+        "weak_topics": [],
+    }
+    result = n_feedback(state, answers=inp.answers)
+    return {"results": result["results"], "weak_topics": result["weak_topics"]}
 
 
 @app.get("/mastery/{student_id}")

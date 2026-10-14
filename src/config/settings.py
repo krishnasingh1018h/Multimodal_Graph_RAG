@@ -9,17 +9,19 @@ class Settings(BaseSettings):
     # --- LLM providers (generator + distinct verifier) ---
     GOOGLE_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     NVIDIA_NIM_API_KEY: str = ""
     NVIDIA_NIM_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
 
-    # Local LM Studio (OpenAI-compatible). Default to ornith models per user request.
+    # Local LM Studio (OpenAI-compatible).
     LMSTUDIO_BASE_URL: str = "http://localhost:1234/v1"
     LMSTUDIO_API_KEY: str = "lm-studio"
 
-    GENERATOR_PROVIDER: str = "lmstudio"   # google | openai | nim | lmstudio
-    GENERATOR_MODEL: str = "ornith-1.5-9b"   # single local model for both roles
-    VERIFIER_PROVIDER: str = "lmstudio"      # same model (VRAM); cross-check is weaker
-    VERIFIER_MODEL: str = "ornith-1.5-9b"
+    GENERATOR_PROVIDER: str = "openrouter"   # openrouter | google | openai | nim | lmstudio
+    GENERATOR_MODEL: str = "nvidia/nemotron-3.5-lightning:free"
+    VERIFIER_PROVIDER: str = "openrouter"
+    VERIFIER_MODEL: str = "cohere/north-mini-code:free"
     NIM_MODEL: str = "meta/llama-3.1-70b-instruct"
 
     # --- Reranker (cross-encoder, CPU-safe) ---

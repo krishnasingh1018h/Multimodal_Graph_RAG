@@ -20,11 +20,25 @@ def _lmstudio_chat(model: str, temperature: float):
                       max_tokens=2048, max_retries=1, request_timeout=300)
 
 
+def _openrouter_chat(model: str, temperature: float):
+    s = get_settings()
+    if not s.OPENROUTER_API_KEY:
+        raise RuntimeError(
+            "OPENROUTER_API_KEY is required. Add your OpenRouter key to .env."
+        )
+    return ChatOpenAI(model=model, temperature=temperature,
+                      base_url=s.OPENROUTER_BASE_URL,
+                      api_key=s.OPENROUTER_API_KEY)
+
+
 def get_generator():
     """Primary answering / generation chat model (LangChain)."""
     s = get_settings()
+    if s.GENERATOR_PROVIDER == "openrouter":
+        return _openrouter_chat(s.GENERATOR_MODEL, 0.2)
     if s.GENERATOR_PROVIDER == "openai":
-        return ChatOpenAI(model=s.GENERATOR_MODEL, temperature=0.2)
+        return ChatOpenAI(model=s.GENERATOR_MODEL, api_key=s.OPENAI_API_KEY,
+                          temperature=0.2)
     if s.GENERATOR_PROVIDER == "nim":
         return ChatOpenAI(model=s.NIM_MODEL, base_url=s.NVIDIA_NIM_BASE_URL,
                           api_key=s.NVIDIA_NIM_API_KEY, temperature=0.2)
@@ -36,8 +50,11 @@ def get_generator():
 def get_verifier():
     """MUST be a different vendor/model from generator (cross-model validation)."""
     s = get_settings()
+    if s.VERIFIER_PROVIDER == "openrouter":
+        return _openrouter_chat(s.VERIFIER_MODEL, 0.0)
     if s.VERIFIER_PROVIDER == "openai":
-        return ChatOpenAI(model=s.VERIFIER_MODEL, temperature=0.0)
+        return ChatOpenAI(model=s.VERIFIER_MODEL, api_key=s.OPENAI_API_KEY,
+                          temperature=0.0)
     if s.VERIFIER_PROVIDER == "nim":
         return ChatOpenAI(model=s.NIM_MODEL, base_url=s.NVIDIA_NIM_BASE_URL,
                           api_key=s.NVIDIA_NIM_API_KEY, temperature=0.0)

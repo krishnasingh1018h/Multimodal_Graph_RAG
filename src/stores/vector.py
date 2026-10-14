@@ -26,6 +26,18 @@ def get_store():
 
 
 def add_documents(docs: list[Document]) -> list[str]:
+    if get_settings().VECTOR_BACKEND != "qdrant":
+        docs = [
+            Document(
+                page_content=doc.page_content,
+                metadata={
+                    key: value
+                    for key, value in doc.metadata.items()
+                    if value is not None and isinstance(value, (str, int, float, bool))
+                },
+            )
+            for doc in docs
+        ]
     return get_store().add_documents(docs)
 
 
@@ -62,7 +74,22 @@ def hybrid_search(query: str, k: int = 6, topic: str | None = None) -> list[Docu
         for d in bm25_search(query, corpus, s.RERANKER_TOPN):
             if all(d.page_content != c.page_content for c in cands):
                 cands.append(d)
-    return rerank(query, cands, k)
+    ranked = rerank(query, cands, k)
+    unique: list[Document] = []
+    seen: set[tuple] = set()
+    for doc in ranked:
+        metadata = doc.metadata
+        identity = (
+            doc.page_content,
+            metadata.get("source_file"),
+            metadata.get("page"),
+            metadata.get("slide"),
+            metadata.get("t_start"),
+        )
+        if identity not in seen:
+            seen.add(identity)
+            unique.append(doc)
+    return unique[:k]
 
 
 def _rerank(query: str, docs: list[Document], k: int) -> list[Document]:

@@ -37,8 +37,8 @@ def n_grade(s: TutorState) -> TutorState:
         overlap = len(q & toks) / max(1, len(q))
         scored.append((overlap, d))
     scored.sort(key=lambda x: -x[0])
-    s["docs"] = [d for sc, d in scored]
     best = scored[0][0] if scored else 0.0
+    s["docs"] = [d for overlap, d in scored if overlap > 0]
     s["verdict"] = "answer" if best >= get_settings().GRADE_THRESHOLD else "refuse"
     return s
 

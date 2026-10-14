@@ -74,21 +74,22 @@ workflow_walkthrough.ipynb  executable tour of the whole workflow
 /home/preritubuntu/miniconda3/envs/langchain_env/bin/python -m pip install -r requirements.txt
 ```
 
-### 2. Configure (optional — works offline without keys)
+### 2. Configure OpenRouter (default)
 
 ```bash
-cp .env.example .env   # if present, else create .env:
+cp .env.example .env
 ```
 
-```env
-GOOGLE_API_KEY=...        # generator (gemini-2.5-flash)
-OPENAI_API_KEY=...        # verifier  (gpt-4o-mini)
-NVIDIA_NIM=...            # alt verifier via NIM
-GENERATOR_PROVIDER=google
-VERIFIER_PROVIDER=openai
-```
+Set `OPENROUTER_API_KEY` in `.env` to your OpenRouter API key. The generator
+uses `nvidia/nemotron-3.5-lightning:free` and the verifier uses
+`cohere/north-mini-code:free`; both use the same key. These free models are
+subject to OpenRouter's rate limits and availability. Keep `.env` private and
+never commit it.
 
-Without keys every LLM step falls back to offline heuristics (extractive answers, sentence-based quiz) — the full pipeline still runs.
+To use local LM Studio or another provider instead, override
+`GENERATOR_PROVIDER` and `VERIFIER_PROVIDER` in `.env` (`lmstudio`, `google`,
+`openai`, or `nim`). Without provider keys, LLM steps use the available offline
+heuristics (extractive answers, sentence-based quiz).
 
 > **No `PYTHONPATH` needed.** `src/api/main.py`, `src/ui/app.py`, and `scripts/smoke.py`
 > each bootstrap `sys.path` to the project root on startup, so `streamlit run`,
@@ -143,8 +144,9 @@ $PY -m uvicorn src.api.main:app --reload --reload-dir src --port 8000
 |---|---|
 | `POST /ingest` (file upload → G0) | `curl -F "file=@data/uploads/sample.txt" http://localhost:8000/ingest` |
 | `POST /chat` (G1 tutor) | `curl -X POST localhost:8000/chat -H 'Content-Type: application/json' -d '{"question":"What is photosynthesis?","student_id":"demo"}'` |
-| `POST /quiz` (G2 quiz) | `curl -X POST localhost:8000/quiz -H 'Content-Type: application/json' -d '{"scope":"photosynthesis","student_id":"demo","difficulty":"auto","n":3}'` |
-| `GET /mastery/{student_id}` (G3) | `curl http://localhost:8000/mastery/demo` |
+| `POST /quiz` (G2 quiz) | `curl -X POST localhost:8050/quiz -H 'Content-Type: application/json' -d '{"scope":"photosynthesis","student_id":"demo","difficulty":"auto","n":3}'` |
+| `POST /quiz/submit` (grade + update BKT) | Send `scope`, `student_id`, `questions`, and `{qhash: answer}` in `answers` |
+| `GET /mastery/{student_id}` (G3) | `curl http://localhost:8050/mastery/demo` |
 
 Python equivalent (no server):
 
@@ -192,7 +194,7 @@ Run the React frontend with the backend (two terminals):
 
 ```bash
 # terminal 1 — backend
-.\.backend-env\python.exe -m uvicorn src.api.main:app --reload --reload-dir src --port 8000
+.\.backend-env\python.exe -m uvicorn src.api.main:app --reload --reload-dir src --port 8050
 # terminal 2 — React frontend
 npm run dev
 ```
@@ -225,8 +227,8 @@ $PY -c "from src.eval.evaluate import ragas_eval; print(ragas_eval())"
 
 | Key | Default | Meaning |
 |---|---|---|
-| `GENERATOR_PROVIDER/MODEL` | `google / gemini-2.5-flash` | answering quiz-generation LLM |
-| `VERIFIER_PROVIDER/MODEL` | `openai / gpt-4o-mini` | must differ from generator (cross-vendor check) |
+| `GENERATOR_PROVIDER/MODEL` | `openrouter / nvidia/nemotron-3.5-lightning:free` | answering and quiz-generation LLM |
+| `VERIFIER_PROVIDER/MODEL` | `openrouter / cohere/north-mini-code:free` | separate model for verification |
 | `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Chroma embeddings (downloads on first run) |
 | `VECTOR_BACKEND / CHROMA_DIR` | `chroma / data/chroma_db` | vector store location |
 | `TOP_K / CHUNK_SIZE / OVERLAP` | `6 / 900 / 135` | retrieval + chunking |
@@ -250,5 +252,5 @@ $PY -c "from src.eval.evaluate import ragas_eval; print(ragas_eval())"
 ## 📌 Notes & next steps
 
 - Offline-first: every LLM call is wrapped in try/except with a heuristic fallback, so the demo never blocks on keys.
-- Add `GOOGLE_API_KEY` + `OPENAI_API_KEY` to `.env` to enable LLM tagging / cited answering / verification.
+- Add `OPENROUTER_API_KEY` to `.env` to enable free OpenRouter-backed generation and verification. Set `GOOGLE_API_KEY` too if using Google for LLM tagging.
 - Suggested extensions: prereq concept-map UI, flashcards for weak topics, forgetting-curve revision scheduler.
